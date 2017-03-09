@@ -25,6 +25,7 @@ def main():
     enclosure = Enclosure()
     try:
         enclosure.run()
+        print "finished calling run"
     except Exception as e:
         print(e)
     finally:

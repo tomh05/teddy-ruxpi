@@ -119,6 +119,14 @@ class EnclosureAPI:
         """
         self.ws.emit(Message("enclosure.eyes.level", {'level': level}))
 
+    def eyes_flash(self):
+        self.ws.emit(Message("enclosure.eyes.flash"))
+        print "got message to start Flash"
+
+    def eyes_stop_flash(self):
+        self.ws.emit(Message("enclosure.eyes.stopflash"))
+        print "got message to stop Flash"
+
     def eyes_reset(self):
         """Restore the eyes to their default (ready) state."""
         self.ws.emit(Message("enclosure.eyes.reset"))

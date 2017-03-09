@@ -46,6 +46,8 @@ class Mimic(TTS):
     def execute(self, sentence):
         output = subprocess.check_output(self.args + ['-t', sentence])
         self.blink(0.5)
+        print "Logging for sentence"
+        print sentence 
         process = play_wav(self.filename)
         self.visime(output)
         process.communicate()
@@ -65,7 +67,8 @@ class Mimic(TTS):
                 delta = time() - start
                 if delta < duration:
                     sleep(duration - delta)
-
+                else:
+                    print "under run of " + str(delta)
 
 class MimicValidator(TTSValidator):
     def __init__(self, tts):

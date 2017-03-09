@@ -145,6 +145,8 @@ def create_skill_descriptor(skill_folder):
 def load_skills(emitter, skills_root=SKILLS_BASEDIR):
     skill_list = []
     skills = get_skills(skills_root)
+    print "skills loaded are"
+    print skills
     for skill in skills:
         if skill['name'] in PRIMARY_SKILLS:
             skill_list.append(load_skill(skill, emitter))

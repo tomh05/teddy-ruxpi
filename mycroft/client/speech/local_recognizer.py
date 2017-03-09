@@ -60,12 +60,11 @@ class LocalRecognizer(object):
         return config
 
     def transcribe(self, byte_data, metrics=None):
-        start = time.time()
         self.decoder.start_utt()
         self.decoder.process_raw(byte_data, False, False)
         self.decoder.end_utt()
-        if metrics:
-            metrics.timer("mycroft.stt.local.time_s", time.time() - start)
+        #if metrics:
+        #    metrics.timer("mycroft.stt.local.time_s", time.time() - start)
         return self.decoder.hyp()
 
     def is_recognized(self, byte_data, metrics):

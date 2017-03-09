@@ -41,6 +41,7 @@ config = ConfigurationManager.get()
 
 def handle_record_begin():
     logger.info("Begin Recording...")
+    EnclosureAPI(ws).eyes_brightness(12)
 
     # If enabled, play a wave file with a short sound to audibly
     # indicate recording has begun.
@@ -54,12 +55,24 @@ def handle_record_begin():
 
 def handle_record_end():
     logger.info("End Recording...")
+    #EnclosureAPI(ws).eyes_brightness(1)
+    EnclosureAPI(ws).eyes_flash()
     ws.emit(Message('recognizer_loop:record_end'))
 
-
 def handle_wakeword(event):
+
+    EnclosureAPI(ws).eyes_stop_flash()
     logger.info("Wakeword Detected: " + event['utterance'])
     ws.emit(Message('recognizer_loop:wakeword', event))
+
+def handle_tooshort(event):
+    logger.info("Utterance was too short")
+    EnclosureAPI(ws).eyes_stop_flash()
+    EnclosureAPI(ws).eyes_brightness(0)
+
+def handle_waiting_for_wakeword():
+    EnclosureAPI(ws).eyes_stop_flash()
+    EnclosureAPI(ws).eyes_brightness(0)
 
 
 def handle_utterance(event):
@@ -68,6 +81,7 @@ def handle_utterance(event):
 
 
 def mute_and_speak(utterance):
+    EnclosureAPI(ws).eyes_stop_flash()
     lock.acquire()
     ws.emit(Message("recognizer_loop:audio_output_start"))
     try:
@@ -81,6 +95,7 @@ def mute_and_speak(utterance):
 
 
 def handle_multi_utterance_intent_failure(event):
+    EnclosureAPI(ws).eyes_stop_flash()
     logger.info("Failed to find intent on multiple intents.")
     # TODO: Localize
     mute_and_speak("Sorry, I didn't catch that. Please rephrase your request.")
@@ -88,6 +103,10 @@ def handle_multi_utterance_intent_failure(event):
 
 def handle_speak(event):
     utterance = event.data['utterance']
+
+    print "calling api eyes_flash_stop"
+    EnclosureAPI(ws).eyes_stop_flash()
+    EnclosureAPI(ws).eyes_brightness(1)
 
     # This is a bit of a hack for Picroft.  The analog audio on a Pi blocks
     # for 30 seconds fairly often, so we don't want to break on periods
@@ -104,6 +123,7 @@ def handle_speak(event):
             mute_and_speak(chunk)
     else:
         mute_and_speak(utterance)
+    EnclosureAPI(ws).eyes_brightness(0)
 
 
 def handle_sleep(event):
@@ -118,7 +138,6 @@ def handle_stop(event):
     kill([config.get('tts').get('module')])
     kill(["aplay"])
 
-
 def handle_paired(event):
     IdentityManager.update(event.data)
 
@@ -127,6 +146,16 @@ def handle_open():
     # Reset the UI to indicate ready for speech processing
     EnclosureAPI(ws).reset()
 
+def handle_mute(event):
+    print "toggling mute"
+    is_enabled = loop.remote_recognizer.is_wakeword_enabled
+    print is_enabled
+    if (is_enabled):
+       loop.muteListen()
+       tts.execute("muted")
+    else:
+       loop.unmuteListen()
+       tts.execute("listening")
 
 def connect():
     ws.run_forever()
@@ -141,8 +170,10 @@ def main():
     loop = RecognizerLoop()
     loop.on('recognizer_loop:utterance', handle_utterance)
     loop.on('recognizer_loop:record_begin', handle_record_begin)
+    loop.on('recognizer_loop:waiting_for_wakeword', handle_waiting_for_wakeword)
     loop.on('recognizer_loop:wakeword', handle_wakeword)
     loop.on('recognizer_loop:record_end', handle_record_end)
+    loop.on('recognizer_loop:tooshort', handle_tooshort)
     loop.on('speak', handle_speak)
     ws.on('open', handle_open)
     ws.on('speak', handle_speak)
@@ -150,12 +181,16 @@ def main():
         'multi_utterance_intent_failure',
         handle_multi_utterance_intent_failure)
     ws.on('recognizer_loop:sleep', handle_sleep)
+    ws.on('recognizer_loop:mute', handle_mute)
     ws.on('recognizer_loop:wake_up', handle_wake_up)
     ws.on('mycroft.stop', handle_stop)
     ws.on("mycroft.paired", handle_paired)
     event_thread = Thread(target=connect)
     event_thread.setDaemon(True)
     event_thread.start()
+
+    #tts.execute("Hello! I am Teddy, your TV watching companion.")
+    tts.execute("To get my attention, say Hey Teddy!")
 
     try:
         loop.run()

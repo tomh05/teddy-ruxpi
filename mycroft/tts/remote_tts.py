@@ -45,6 +45,7 @@ class RemoteTTS(TTS):
         self.session = FuturesSession()
 
     def execute(self, sentence):
+        LOGGER.info("executing tts for",sentence)
         phrases = self.__get_phrases(sentence)
 
         if len(phrases) > 0:
@@ -80,6 +81,7 @@ class RemoteTTS(TTS):
         resp = req.result()
         if resp.status_code == 200:
             self.__save(resp.content)
+            LOGGER.info("playing wav from response")
             play_wav(self.filename).communicate()
         else:
             LOGGER.error(

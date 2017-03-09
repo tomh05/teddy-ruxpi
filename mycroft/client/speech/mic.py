@@ -59,7 +59,9 @@ class MutableStream(object):
             if to_read == 0:
                 sleep(.01)
                 continue
+
             result = self.wrapped_stream.read(to_read)
+
             frames.append(result)
             remaining -= to_read
 
@@ -69,6 +71,7 @@ class MutableStream(object):
         if input_latency > 0.2:
             logger.warn("High input latency: %f" % input_latency)
         audio = b"".join(list(frames))
+
         return audio
 
     def close(self):
@@ -83,7 +86,7 @@ class MutableStream(object):
 
 
 class MutableMicrophone(Microphone):
-    def __init__(self, device_index=None, sample_rate=16000, chunk_size=1024):
+    def __init__(self, device_index=None, sample_rate=16000, chunk_size=2048):
         Microphone.__init__(
             self, device_index=device_index, sample_rate=sample_rate,
             chunk_size=chunk_size)
@@ -93,6 +96,14 @@ class MutableMicrophone(Microphone):
         assert self.stream is None, \
             "This audio source is already inside a context manager"
         self.audio = pyaudio.PyAudio()
+        info = self.audio.get_host_api_info_by_index(0)
+        numdevices = info.get('deviceCount')
+        for i in range(0, numdevices):
+          if (self.audio.get_device_info_by_host_api_device_index(0, i).get('maxInputChannels')) > 0:
+            print "Input Device id ", i, " - ", self.audio.get_device_info_by_host_api_device_index(0, i)
+
+        logger.warn("Opening stream with: index %s, %s rate %s, %s" % (self.device_index,self.format,self.SAMPLE_RATE,self.CHUNK))
+        #self.SAMPLE_RATE=48000
         self.stream = MutableStream(self.audio.open(
             input_device_index=self.device_index, channels=1,
             format=self.format, rate=self.SAMPLE_RATE,
@@ -133,7 +144,7 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
 
     # The maximum length a phrase can be recorded,
     # provided there is noise the entire time
-    RECORDING_TIMEOUT = 30.0
+    RECORDING_TIMEOUT = 10.0
 
     # The maximum time it will continue to record silence
     # when not enough noise has been detected
@@ -148,6 +159,7 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
         self.audio = pyaudio.PyAudio()
         self.multiplier = listener_config.get('multiplier')
         self.energy_ratio = listener_config.get('energy_ratio')
+        self.is_wakeword_enabled = False
 
     @staticmethod
     def record_sound_chunk(source):
@@ -161,7 +173,7 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
         hyp = self.wake_word_recognizer.transcribe(frame_data)
         return self.wake_word_recognizer.found_wake_word(hyp)
 
-    def record_phrase(self, source, sec_per_buffer):
+    def record_phrase(self, source, sec_per_buffer, was_button_pressed):
         """
         This attempts to record an entire spoken phrase. Essentially,
         this waits for a period of silence and then returns the audio
@@ -203,11 +215,13 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
 
         phrase_complete = False
         while num_chunks < max_chunks and not phrase_complete:
+            print "getting chunk " + str(num_chunks)
             chunk = self.record_sound_chunk(source)
             byte_data += chunk
             num_chunks += 1
 
             energy = self.calc_energy(chunk, source.SAMPLE_WIDTH)
+            print "energy " + str(energy)
             test_threshold = self.energy_threshold * self.multiplier
             is_loud = energy > test_threshold
             if is_loud:
@@ -220,11 +234,16 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
             was_loud_enough = num_loud_chunks > min_loud_chunks
             quiet_enough = noise <= min_noise
             recorded_too_much_silence = num_chunks > max_chunks_of_silence
-            if quiet_enough and (was_loud_enough or recorded_too_much_silence):
+            if ( (not was_button_pressed) and quiet_enough and (was_loud_enough or recorded_too_much_silence) ):
+                print "quiet enough - stopping"
                 phrase_complete = True
-            if check_for_signal('buttonPress'):
+            if ( was_button_pressed and check_for_signal('stopRecordingButton')):
+                print "button release detected"
                 phrase_complete = True
+            #if check_for_signal('buttonPress'):
+            #    phrase_complete = True
 
+        print "About to return from recording"
         return byte_data
 
     @staticmethod
@@ -232,6 +251,7 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
         return sec * source.SAMPLE_RATE * source.SAMPLE_WIDTH
 
     def wait_until_wake_word(self, source, sec_per_buffer):
+	was_button_pressed = False
         num_silent_bytes = int(self.SILENCE_SEC * source.SAMPLE_RATE *
                                source.SAMPLE_WIDTH)
 
@@ -247,8 +267,16 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
         max_size = self.sec_to_bytes(self.SAVED_WW_SEC, source)
 
         said_wake_word = False
+
+        print "starting from wake loop"
         while not said_wake_word:
-            if check_for_signal('buttonPress'):
+            #if check_for_signal('buttonPress'):
+            #    said_wake_word = True
+            #    continue
+
+            if check_for_signal('startRecordingButton'):
+                print "got button start recording press"
+                was_button_pressed = True
                 said_wake_word = True
                 continue
 
@@ -267,7 +295,11 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
             buffers_since_check += 1.0
             if buffers_since_check < buffers_per_check:
                 buffers_since_check -= buffers_per_check
-                said_wake_word = self.wake_word_in_audio(byte_data + silence)
+                if (self.is_wakeword_enabled):
+                    said_wake_word = self.wake_word_in_audio(byte_data + silence)
+        print "returning from wake loop"
+        print was_button_pressed
+        return was_button_pressed
 
     @staticmethod
     def create_audio_data(raw_data, source):
@@ -291,11 +323,15 @@ class ResponsiveRecognizer(speech_recognition.Recognizer):
         sec_per_buffer = float(source.CHUNK) / bytes_per_sec
 
         logger.debug("Waiting for wake word...")
-        self.wait_until_wake_word(source, sec_per_buffer)
+
+        emitter.emit("recognizer_loop:waiting_for_wakeword")
+        was_button_pressed = self.wait_until_wake_word(source, sec_per_buffer)
+
+        logger.debug("button pressed %s",was_button_pressed)
 
         logger.debug("Recording...")
         emitter.emit("recognizer_loop:record_begin")
-        frame_data = self.record_phrase(source, sec_per_buffer)
+        frame_data = self.record_phrase(source, sec_per_buffer,was_button_pressed)
         audio_data = self.create_audio_data(frame_data, source)
         emitter.emit("recognizer_loop:record_end")
         logger.debug("Thinking...")

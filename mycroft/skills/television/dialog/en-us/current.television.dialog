@@ -1,0 +1,4 @@
+At the moment {{channel_name}} is playing {{current_programme_name}}, followed by {{next_programme_name}} in {{next_programme_minutes}} minutes.
+Right now {{channel_name}} is showing {{current_programme_name}} , and there'll be {{next_programme_name}} in {{next_programme_minutes}} minutes.
+Currently on {{channel_name}} there's only {{current_programme_name}}, but I know you'll love {{next_programme_name}} coming on in about {{next_programme_minutes}} minutes. It will be just a short wait.
+On {{channel_name}} you can just catch the rest of {{current_programme_name}}. If you're not into that then there's always {{next_programme_name}} in {{next_programme_minutes}} minutes.

@@ -79,6 +79,21 @@ class EnclosureReader(Thread):
         if "Command: system.version" in data:
             self.ws.emit(Message("enclosure.start"))
 
+        if "teddy.start" in data:
+            LOG.info("Got record start button")
+            #self.ws.emit(Message("manual.record.start"))
+            create_signal('startRecordingButton')  # FIXME - Must use WS instead
+
+        if "teddy.stop" in data:
+            LOG.info("Got record stop button")
+            #self.ws.emit(Message("manual.record.stop"))
+            create_signal('stopRecordingButton')  # FIXME - Must use WS instead
+
+        if "teddy.mute" in data:
+            #self.ws.emit(Message("manual.mute"))
+            #create_signal('muteButton')  # FIXME - Must use WS instead
+            self.ws.emit(Message('recognizer_loop:mute'))
+
         if "mycroft.stop" in data:
             create_signal('buttonPress')  # FIXME - Must use WS instead
             self.ws.emit(Message("mycroft.stop"))
@@ -207,7 +222,7 @@ class Enclosure(object):
         self.writer.write("system.version")
         self.ws.on("enclosure.start", self.start)
         self.started = False
-        Timer(5, self.stop).start()     # WHY? This at least needs an explaination, this is non-obvious behavior
+        Timer(5, self.reconnect).start()     # WHY? This at least needs an explaination, this is non-obvious behavior
 
     def start(self, event=None):
         self.eyes = EnclosureEyes(self.ws, self.writer)
@@ -223,6 +238,9 @@ class Enclosure(object):
             self.port = self.config.get("port")
             self.rate = self.config.get("rate")
             self.timeout = self.config.get("timeout")
+            LOG.info(self.config)
+            LOG.info("connecting to: %s rate: %s timeout: %s" %
+                     (self.port, self.rate, self.timeout))
             self.serial = serial.serial_for_url(
                 url=self.port, baudrate=self.rate, timeout=self.timeout)
             LOG.info("Connected to: %s rate: %s timeout: %s" %
@@ -270,8 +288,15 @@ class Enclosure(object):
             LOG.error("Error: {0}".format(e))
             self.stop()
 
+    def reconnect(self):
+        print "attempting to reconnect"
+        self.writer.write("system.version")
+        if not self.started:
+           Timer(5, self.reconnect).start()     # WHY? This at least needs an explaination, this is non-obvious behavior
+
     def stop(self):
         if not self.started:
+            print "auto stopped"
             self.writer.stop()
             self.reader.stop()
             self.serial.close()

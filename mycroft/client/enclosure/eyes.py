@@ -17,6 +17,7 @@
 
 
 from mycroft.util.log import getLogger
+import time, threading
 
 __author__ = 'jdorleans'
 
@@ -43,6 +44,8 @@ class EnclosureEyes:
         self.ws.on('enclosure.eyes.look', self.look)
         self.ws.on('enclosure.eyes.color', self.color)
         self.ws.on('enclosure.eyes.level', self.brightness)
+        self.ws.on('enclosure.eyes.flash', self.flash)
+        self.ws.on('enclosure.eyes.stopflash', self.flashStop)
         self.ws.on('enclosure.eyes.volume', self.volume)
         self.ws.on('enclosure.eyes.spin', self.spin)
         self.ws.on('enclosure.eyes.timedspin', self.timed_spin)
@@ -76,6 +79,14 @@ class EnclosureEyes:
             b = int(event.data.get("b"), b)
         color = (r * 65536) + (g * 256) + b
         self.writer.write("eyes.color=" + str(color))
+
+    def flash(self,event=None):
+        print "flashing eyes method"
+        self.writer.write("eyes.flash")
+
+    def flashStop(self,event=None):
+        print "noflashing eyes method"
+        self.writer.write("eyes.noflash")
 
     def brightness(self, event=None):
         level = 30

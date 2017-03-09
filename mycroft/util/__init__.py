@@ -75,6 +75,8 @@ def resolve_resource_file(res_name):
 
 
 def play_wav(uri):
+    print "aplay util"
+    print uri
     return subprocess.Popen(["aplay", get_http(uri)])
 
 

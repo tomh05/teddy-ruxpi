@@ -19,12 +19,14 @@
 import json
 
 import sys
+import time
 from os.path import expanduser, exists
 
 from mycroft.configuration import ConfigurationManager
 from mycroft.messagebus.client.ws import WebsocketClient
 from mycroft.skills.core import load_skills, THIRD_PARTY_SKILLS_DIR
 from mycroft.util.log import getLogger
+from mycroft.messagebus.message import Message
 
 logger = getLogger("Skills")
 
@@ -77,6 +79,8 @@ def main():
 
     ws.on('message', echo)
     ws.once('open', load_skills_callback)
+    time.sleep(5)
+    ws.emit(Message("speak", {'utterance': "Hello!"}))
     ws.run_forever()
 
 

@@ -78,7 +78,7 @@ def cli(*args):
 
 def wpa(*args):
     idx = 0
-    result = cli('wpa_cli', '-i', *args)
+    result = cli('sudo -E wpa_cli', '-i', *args)
     out = result.get("stdout", "\n")
     if "interface" in out:
         idx = 1
@@ -248,6 +248,7 @@ class WiFi:
 
         # Fire up our access point
         self.ap.up()
+        LOG.info("Done putting ap up...")
         if not self.server:
             LOG.info("Creating web server...")
             self.server = WebServer(self.ap.ip, 80)
@@ -520,6 +521,7 @@ def main():
     try:
         wifi.run()
     except Exception as e:
+        "exception"
         print(e)
     finally:
         sys.exit()

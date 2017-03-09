@@ -83,6 +83,29 @@ if [[ -z "$1" || "$1" == "-h" ]]
 then
   usage
   exit 1
+elif [[ "$1" == "teddy" && -z "$2" ]]
+then
+  start-mycroft service
+  start-mycroft wifi
+  start-mycroft skills
+  start-mycroft voice
+  start-mycroft enclosure
+  start-mycroft cli --quiet
+  exit 0
+
+elif [[ "$1" == "delayteddy" && -z "$2" ]]
+then
+  sleep 5
+  start-mycroft service
+  start-mycroft skills
+  start-mycroft voice
+  start-mycroft enclosure
+#  start-mycroft cli --quiet
+  start-mycroft cli
+  exit 0
+
+
+
 elif [[ "$1" == "start" && -z "$2" ]]
 then
   start-mycroft service
@@ -107,7 +130,9 @@ then
   stop-mycroft service
   stop-mycroft skills
   stop-mycroft voice
+  stop-mycroft enclosure
   stop-mycroft cli
+  stop-mycroft wifi
   exit 0
 elif [[ "$1" == "restart" && -z "$2" ]]
 then

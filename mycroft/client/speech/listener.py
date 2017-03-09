@@ -66,7 +66,10 @@ class AudioProducer(Thread):
                     # buffering audio between listen loops.
                     # The internet was not helpful.
                     # http://stackoverflow.com/questions/10733903/pyaudio-input-overflowed
+                    LOG.error("IOERROR: " + str(ex))
                     self.emitter.emit("recognizer_loop:ioerror", ex)
+                except Exception, ex:
+                    LOG.error("general error: " + str(ex))
 
 
 class AudioConsumer(Thread):
@@ -127,6 +130,7 @@ class AudioConsumer(Thread):
 
         if self._audio_length(audio) < self.MIN_AUDIO_SIZE:
             LOG.warn("Audio too short to be processed")
+	    self.emitter.emit("recognizer_loop:tooshort",{})
         elif connected():
             self.transcribe(audio)
         else:
@@ -135,7 +139,10 @@ class AudioConsumer(Thread):
     def transcribe(self, audio):
         text = None
         try:
-            text = self.stt.execute(audio).lower().strip()
+            print("aud: " + str((audio)))
+            initial = self.stt.execute(audio)
+            print("initial: " + initial)
+            text = initial.lower().strip()
             LOG.debug("STT: " + text)
         except sr.RequestError as e:
             LOG.error("Could not request Speech Recognition {0}".format(e))
@@ -156,6 +163,7 @@ class AudioConsumer(Thread):
             self.metrics.attr('utterances', [text])
 
     def __speak(self, utterance):
+        print "going to speak " + utterance
         payload = {
             'utterance': utterance,
             'session': SessionManager.get().session_id
@@ -189,6 +197,7 @@ class RecognizerLoop(EventEmitter):
 
     def create_mycroft_recognizer(self, rate, lang):
         wake_word = self.config.get('wake_word')
+        LOG.debug("Using wake word %s" % wake_word)
         phonemes = self.config.get('phonemes')
         threshold = self.config.get('threshold')
         return LocalRecognizer(wake_word, phonemes, threshold, rate, lang)
@@ -218,6 +227,13 @@ class RecognizerLoop(EventEmitter):
 
     def sleep(self):
         self.state.sleeping = True
+
+    def muteListen(self):
+          self.remote_recognizer.is_wakeword_enabled = False
+
+    def unmuteListen(self):
+          self.remote_recognizer.is_wakeword_enabled = True
+
 
     def awaken(self):
         self.state.sleeping = False
