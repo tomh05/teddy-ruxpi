@@ -52,8 +52,8 @@ class TelevisionSkill(MycroftSkill):
             channel = self.get_channel(message)
             print "got channel"
             # Pick a random channel
-            channel_bbcone = ('BBC One', 'bbcone', 'london')
-            channel_bbctwo = ('BBC Two', 'bbctwo', 'england')
+            channel_bbcone = ('BBC One', 'bbc_one_london', 'london')
+            channel_bbctwo = ('BBC Two', 'bbc_two_england', 'england')
          
             print "set initial"
             all_channels = [channel_bbcone, channel_bbctwo]
@@ -77,7 +77,8 @@ class TelevisionSkill(MycroftSkill):
             next_minutes = 0
 
             try:
-                r = requests.get('http://www.bbc.co.uk/%s/programmes/schedules/%s.json' % (channel_id, channel_region))
+                today = datetime.date.today()
+                r = requests.get('https://ibl.api.bbci.co.uk/ibl/v1/channels/%s/schedule/%s' %(channel_id, today))
                 schedule = r.json()
                 current_programme, next_programme, next_minutes = self.parse_schedule(schedule)
             except Exception as e:
@@ -96,9 +97,9 @@ class TelevisionSkill(MycroftSkill):
             LOG.error("Error: {0}".format(e))
 
 
-    def parse_schedule(self,schedule):
+    def parse_schedule(self, schedule):
         print "parsing schedule"
-        broadcasts = schedule['schedule']['day']['broadcasts']
+        broadcasts = schedule['schedule']['elements']
      
         print "broadcasts"
         now = datetime.datetime.now()
@@ -110,29 +111,25 @@ class TelevisionSkill(MycroftSkill):
         next_is_next = False
      
         for broadcast in broadcasts:
-            start = self.parse_date(broadcast['start'])
-            end = self.parse_date(broadcast['end'])
+            start = self.parse_date(broadcast['scheduled_start'])
+            end = self.parse_date(broadcast['scheduled_end'])
      
             if next_is_next:
-                next_programme = self.parse_title(broadcast['programme'])
+                next_programme = broadcast['episode']['title']
                 next_minutes = int((start - now).total_seconds()/60)
                 break
             elif now >= start and now <= end:
-                current_programme = self.parse_title(broadcast['programme'])
+                current_programme = broadcast['episode']['title']
                 next_is_next = True
         return (current_programme, next_programme, next_minutes)
-     
-    def parse_title(self,programme):
-        titles = programme['display_titles']
-        return titles['title'];
      
     def parse_date(self,date_string):
         dt = None
         try:
-            format_zulu = '%Y-%m-%dT%H:%M:%S%z'
+            format_offset = '%Y-%m-%dT%H:%M:%S.%f%z'
             dt = datetime.datetime(date_string, format_offset)
         except:
-            format_zulu = '%Y-%m-%dT%H:%M:%SZ'
+            format_zulu = '%Y-%m-%dT%H:%M:%S.%fZ'
             dt = datetime.datetime.strptime(date_string, format_zulu)
             # TODO should also set the time zone to have zero offset.
             # The date parsing may stop working in daylight saving times or time zones other than gmt.
